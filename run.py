@@ -1,21 +1,20 @@
 import argparse
 import glob
 import os
-import torch
+
 import numpy as np
-
-import utils
-
-from active import update_dataset, create_new_dir
-from engine import train_one_epoch, evaluate
-from cirrus.data import LSBInstanceDataset
-from figplot import plot_preds
-from modmrcnn.models import get_model
-from cirrus.training_utils import lsb_datasets, construct_dataset
-import cirrus.training_utils
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-from quicktorch.metrics import iou, dice
+import torch
+
+import cirrus.training_utils
+from active import update_dataset, create_new_dir
+from figplot import plot_preds
+from cirrus.data import LSBInstanceDataset
+from cirrus.training_utils import lsb_datasets, construct_dataset
+from modmrcnn.models import get_model
+from modmrcnn.mrcnnhelper.engine import train_one_epoch, evaluate
+from modmrcnn.mrcnnhelper.utils import collate_fn
 
 
 def from_checkpoint(path, model, opt):
@@ -294,15 +293,15 @@ def get_data_loaders(dataset_train, dataset_val, dataset_test, batch_size=2):
     # define training and validation data loaders
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, batch_size=batch_size, shuffle=True, num_workers=0,
-        collate_fn=utils.collate_fn)
+        collate_fn=collate_fn)
 
     data_loader_val = torch.utils.data.DataLoader(
         dataset_val, batch_size=1, shuffle=False, num_workers=0,
-        collate_fn=utils.collate_fn)
+        collate_fn=collate_fn)
 
     data_loader_test = torch.utils.data.DataLoader(
         dataset_test, batch_size=1, shuffle=False, num_workers=0,
-        collate_fn=utils.collate_fn)
+        collate_fn=collate_fn)
 
     return data_loader_train, data_loader_val, data_loader_test
 
