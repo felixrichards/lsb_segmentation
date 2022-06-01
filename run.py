@@ -60,7 +60,7 @@ def get_datasets(class_map='lsb'):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Converts standard CirrusDataset to LSBDataset.')
+    parser = argparse.ArgumentParser(description='Runs MaskRCNN on lsb annotations.')
 
     parser.add_argument('--checkpoint_dir',
                         default='', type=str,
