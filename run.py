@@ -107,15 +107,17 @@ def main():
     model_key = get_model_key(args)
     print("Loading model", model_key)
     model = get_model(model_key, num_classes)
-    attention = hasattr(model, 'contaminant_segmenter')
+    has_attention = hasattr(model, 'contaminant_segmenter')
 
     # move model to the right device
     model.to(device)
 
     # get optim and lr sched
-    optimizer, lr_scheduler = create_optim(model, attention)
+    optimizer, lr_scheduler = create_optim(model, has_attention)
 
+    # Check if checkpoint is provided
     if args.checkpoint_dir:
+        # Load checkpoint
         model_folder = args.checkpoint_dir
         ver_dir = os.path.split(model_folder)[-1]
         start_epoch = from_checkpoint(model_folder, model, optimizer)
@@ -125,6 +127,7 @@ def main():
             update_data_dir(data_dir)
             print(data_dir)
     else:
+        # Initialise new checkpoint
         model_folder = os.path.join('./models', args.model_key)
         os.makedirs(model_folder, exist_ok=True)
         ver_dir = 'ver' + str(len(glob.glob(os.path.join(model_folder, '*/'))))
@@ -141,7 +144,7 @@ def main():
         batch_size=args.batch_size
     )
 
-    num_epochs = 195
+    num_epochs = 200
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch, printing every 10 iterations
         with torch.autograd.set_detect_anomaly(True):
@@ -149,12 +152,10 @@ def main():
         save_checkpoint(model_folder, model, optimizer, epoch, args.model_key)
         # update the learning rate
         lr_scheduler.step()
-        # evaluate on the test dataset
-        # if epoch > 0 and epoch % 10 == 0:
-        #     evaluate(model, data_loader_val, device=device)
+
+        # check for active learning
         if epoch % args.active_step == 0 and epoch > args.active_start and args.active:
             dataset_num = (epoch - args.active_start) // args.active_step + 1
-            # print(dataset_num)
             # add good false positives to training set
             with torch.no_grad():
                 update_dataset(args, model, ver_dir, dataset_num)
@@ -173,21 +174,23 @@ def main():
 
             plot_new_dataset(new_dir, class_map)
 
+    # Plot predictions
     os.makedirs(os.path.join('./figs', args.model_key), exist_ok=True)
     plot_preds(model, data_loader_test, dataset_test, device, ver_dir=ver_dir, model_key=args.model_key)
 
-    # for lbl in range(1, len(dataset_test.classes)):
-    #     evaluator = evaluate(model, data_loader_test, device=device, classes=[lbl])
-    #     ap_plot(evaluator, dataset_test.classes[lbl], os.path.join('./figs', args.model_key, ver_dir))
+    # Evaluate predictions and plot PR-curves
+    for lbl in range(1, len(dataset_test.classes)):
+        evaluator = evaluate(model, data_loader_test, device=device, classes=[lbl])
+        ap_plot(evaluator, dataset_test.classes[lbl], os.path.join('./figs', args.model_key, ver_dir))
 
-    # classes = torch.arange(1, len(dataset_test.classes)) # include bg?
-    # if 'cirrus' in class_map:
-    #     classes = classes[:-1]
-    #     cirrus_iou = calc_iou(model, data_loader_test, device, idx=len(classes) + 1)
-    #     print(f'{cirrus_iou=}')
+    classes = torch.arange(1, len(dataset_test.classes)) # include bg?
+    if 'cirrus' in class_map:
+        classes = classes[:-1]
+        cirrus_iou = calc_iou(model, data_loader_test, device, idx=len(classes) + 1)
+        print(f'Final {cirrus_iou=}')
 
-    # evaluator = evaluate(model, data_loader_test, device=device, classes=classes)
-    # ap_plot(evaluator, 'all', os.path.join('./figs', args.model_key, ver_dir))
+    evaluator = evaluate(model, data_loader_test, device=device, classes=classes)
+    ap_plot(evaluator, 'all', os.path.join('./figs', args.model_key, ver_dir))
 
 
 def calc_iou(model, data_loader_test, device, idx=4):
